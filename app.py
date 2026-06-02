@@ -15,8 +15,8 @@ UPLOAD_DIR  = Path("/tmp/uploads")
 OUTPUT_DIR  = Path("/tmp/output")
 TEMPLATE_PDF = BASE_DIR / 'Modelo ficha tecnica.pdf'
 
-UPLOAD_DIR.mkdir(exist_ok=True)
-OUTPUT_DIR.mkdir(exist_ok=True)
+UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
+OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
 
 @app.route('/')

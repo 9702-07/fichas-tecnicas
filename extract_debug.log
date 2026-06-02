@@ -1,14 +1,5 @@
-2026-06-02 17:52:42,250 INFO [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+2026-06-02 18:01:59,814 INFO [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
  * Running on http://127.0.0.1:5000
-2026-06-02 17:52:42,250 INFO [33mPress CTRL+C to quit[0m
-2026-06-02 17:52:50,462 INFO 127.0.0.1 - - [02/Jun/2026 17:52:50] "GET / HTTP/1.1" 200 -
-2026-06-02 17:52:51,404 INFO 127.0.0.1 - - [02/Jun/2026 17:52:51] "POST /process HTTP/1.1" 200 -
-2026-06-02 17:53:52,442 INFO 127.0.0.1 - - [02/Jun/2026 17:53:52] "GET / HTTP/1.1" 200 -
-2026-06-02 17:53:52,540 INFO 127.0.0.1 - - [02/Jun/2026 17:53:52] "[36mGET /static/styles.css HTTP/1.1[0m" 304 -
-2026-06-02 17:53:53,487 INFO 127.0.0.1 - - [02/Jun/2026 17:53:53] "GET / HTTP/1.1" 200 -
-2026-06-02 17:53:53,504 INFO 127.0.0.1 - - [02/Jun/2026 17:53:53] "[36mGET /static/styles.css HTTP/1.1[0m" 304 -
-2026-06-02 17:53:54,907 INFO 127.0.0.1 - - [02/Jun/2026 17:53:54] "GET / HTTP/1.1" 200 -
-2026-06-02 17:53:54,925 INFO 127.0.0.1 - - [02/Jun/2026 17:53:54] "[36mGET /static/styles.css HTTP/1.1[0m" 304 -
-2026-06-02 17:54:01,647 INFO 127.0.0.1 - - [02/Jun/2026 17:54:01] "POST /process HTTP/1.1" 200 -
-2026-06-02 17:54:01,667 INFO 127.0.0.1 - - [02/Jun/2026 17:54:01] "GET /preview HTTP/1.1" 200 -
-2026-06-02 17:54:01,690 INFO 127.0.0.1 - - [02/Jun/2026 17:54:01] "[36mGET /static/styles.css HTTP/1.1[0m" 304 -
+2026-06-02 18:01:59,815 INFO [33mPress CTRL+C to quit[0m
+2026-06-02 18:02:06,326 INFO 127.0.0.1 - - [02/Jun/2026 18:02:06] "GET / HTTP/1.1" 200 -
+2026-06-02 18:02:07,380 INFO 127.0.0.1 - - [02/Jun/2026 18:02:07] "POST /process HTTP/1.1" 200 -

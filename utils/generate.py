@@ -2,8 +2,8 @@ import fitz
 import base64
 from typing import List, Dict
 
-FONT_REGULAR = r"C:\Windows\Fonts\calibri.ttf"
-FONT_BOLD    = r"C:\Windows\Fonts\calibrib.ttf"
+FONT_REGULAR = str(Path(__file__).parent.parent / "fonts" / "calibri.ttf")
+FONT_BOLD = str(Path(__file__).parent.parent / "fonts" / "calibrib.ttf")
 
 # ---------------------------------------------------------------------------
 # Template coordinate map  (template page = 743.7 x 1052.55 pts)
