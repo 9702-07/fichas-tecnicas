@@ -4,6 +4,8 @@ import logging
 import os
 from typing import Dict, List, Tuple, Optional
 
+from .parametros import agrupar_parametros
+
 # ---------------------------------------------------------------------------
 # Debug log  (C:\Fichas tecnicas\extract_debug.log)
 # Only our own 'extract' logger is DEBUG; everything else stays at WARNING
@@ -31,65 +33,9 @@ MATRIX_MAP = {
 }
 
 # ---------------------------------------------------------------------------
-# Parameter grouping
+# Parameter grouping  →  see utils/parametros.py (agrupar_parametros)
+# Usa el mismo esquema de familias + mapeo de la app "Plan de muestreo".
 # ---------------------------------------------------------------------------
-METALS = {
-    'aluminio', 'arsenico', 'arsénico', 'cadmio', 'cobre',
-    'cromo hexavalente', 'cromo total', 'manganeso',
-    'mercurio', 'niquel', 'níquel', 'plomo', 'zinc',
-}
-
-PARAM_CANONICAL = [
-    ('DBO5',               ['demanda bioqu']),
-    ('DQO',                    ['demanda qu']),
-    ('SST',                    ['s\xf3lidos', 'solidos', 'tss']),
-    ('Aceites y Grasas',       ['aceites']),
-    ('Nitr\xf3geno Amoniacal', ['nitr\xf3geno', 'nitrogeno']),
-    ('Sulfatos',               ['sulfatos']),
-    ('Cianuro Total',          ['cianuro']),
-    ('pH',                     ['ph']),
-    ('Temperatura',            ['temperatura']),
-]
-
-
-def group_parameters(raw_list: List[str]) -> List[str]:
-    """Abbreviate and group parameters so they fit in the ficha box."""
-    result: List[str] = []
-    has_metals = False
-
-    for param in raw_list:
-        p = param.lower().strip()
-        if not p:
-            continue
-
-        # Check metals first
-        if any(m in p for m in METALS):
-            has_metals = True
-            continue
-
-        # Map to canonical name
-        matched = False
-        for canon, keywords in PARAM_CANONICAL:
-            if any(kw in p for kw in keywords):
-                if canon not in result:
-                    result.append(canon)
-                matched = True
-                break
-
-        if not matched:
-            clean = param.strip()
-            if clean and clean not in result:
-                result.append(clean)
-
-    # Insert Metales right after Aceites y Grasas (or at end)
-    if has_metals:
-        if 'Aceites y Grasas' in result:
-            idx = result.index('Aceites y Grasas') + 1
-            result.insert(idx, 'Metales')
-        else:
-            result.append('Metales')
-
-    return result
 
 
 # ---------------------------------------------------------------------------
@@ -327,7 +273,7 @@ def extract_cdc_data(pdf_path: str) -> Dict:
         # Parse / group
         estacion, cod_pto, descripcion = _parse_pto(pto_raw)
         params_raw    = _parse_params(analisis_raw)
-        params_grouped = group_parameters(params_raw)
+        params_grouped = agrupar_parametros(params_raw)
 
         log.debug(
             'SAMPLE cod_lab=%s  pto_raw=%r  estacion=%r  cod_pto=%r  '
@@ -373,7 +319,8 @@ def extract_cdc_data(pdf_path: str) -> Dict:
             'distrito':      distrito,
             'provincia':     provincia,
             'departamento':  departamento,
-            'parametros':    params_grouped,
+            'parametros':     params_grouped,
+            'parametros_raw': params_raw,    # crudos: se reagrupan tras fusionar
             'frec_muestreo': '-',
             'frec_reporte':  '-',
             'elaborado_por': 'ÁREA DE OPERACIONES',
@@ -385,6 +332,14 @@ def extract_cdc_data(pdf_path: str) -> Dict:
     log.info('Before merge: %d samples', len(result['samples']))
     result['samples'] = _merge_duplicate_stations(result['samples'])
     log.info('After  merge: %d samples', len(result['samples']))
+
+    # Reagrupar con la lista CRUDA ya fusionada por estación, para que las
+    # combinaciones repartidas en varias filas (p. ej. coliformes + virus) se
+    # unan en el grupo correcto. Luego se descarta la lista cruda del payload.
+    for s in result['samples']:
+        raw = s.pop('parametros_raw', None)
+        if raw:
+            s['parametros'] = agrupar_parametros(raw)
 
     return result
 
@@ -421,11 +376,16 @@ def _merge_duplicate_stations(samples: List[Dict]) -> List[Dict]:
     merged: List[Dict] = []
 
     def _add_params(target: Dict, source: Dict) -> None:
-        existing = target.get('parametros') or []
-        for p in (source.get('parametros') or []):
-            if p and p not in existing:
-                existing.append(p)
-        target['parametros'] = existing
+        # Une la lista mostrada Y la cruda; la cruda permite reagrupar
+        # correctamente cuando una estación llega partida en varias filas.
+        for key in ('parametros', 'parametros_raw'):
+            if key not in target and not source.get(key):
+                continue
+            existing = target.get(key) or []
+            for p in (source.get(key) or []):
+                if p and p not in existing:
+                    existing.append(p)
+            target[key] = existing
 
     for s in samples:
         est  = _norm(s.get('estacion',    ''))

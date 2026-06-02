@@ -37,6 +37,9 @@
       <!-- Info summary row -->
       <div class="info-bar" id="infoBar"></div>
 
+      <!-- Bulk apply controls -->
+      <div class="bulk-bar" id="bulkBar" style="display:none"></div>
+
       <!-- Fichas table -->
       <div id="fichasContainer"></div>
     </main>
@@ -118,6 +121,23 @@
   // ── Build editable table ──────────────────────────────────────────────────
   const container = document.getElementById('fichasContainer');
 
+  // Opciones para los desplegables de frecuencia
+  const FREQ_OPTIONS = ['Diario', 'Mensual', 'Trimestral', 'Cuatrimestral', 'Semestral', 'Anual'];
+
+  // Catálogo de grupos de parámetros (del backend) para el desplegable "agregar"
+  const CATALOGO = data.catalogo || [];
+  function catalogOptionsHtml() {
+    let h = '<option value="">➕ elegir grupo…</option>';
+    for (const cat of CATALOGO) {
+      h += `<optgroup label="${esc(cat.categoria)}">`;
+      for (const g of (cat.grupos || [])) {
+        h += `<option value="${esc(g)}">${esc(g)}</option>`;
+      }
+      h += '</optgroup>';
+    }
+    return h;
+  }
+
   samples.forEach((s, idx) => {
     const card = document.createElement('div');
     card.className = 'ficha-card';
@@ -196,23 +216,25 @@
         <!-- Row 6: Parámetros (full width) -->
         <div class="field-group span4">
           <label class="field-label">Parámetros (agrupados)</label>
-          <textarea class="field-input field-textarea"
-            data-idx="${idx}" data-key="parametros_text"
-            rows="3">${esc(s.parametros.join(', '))}</textarea>
+          <div class="chips-box" id="chips${idx}"></div>
+          <div class="chips-add">
+            <select class="field-input chips-select" id="addSel${idx}">${catalogOptionsHtml()}</select>
+            <button type="button" class="btn-chip-add" data-add="${idx}">➕ Agregar</button>
+          </div>
           <div class="params-raw">
             <details>
-              <summary>Ver parámetros originales de la CdC</summary>
-              <p class="params-detail">${esc(s.parametros.join(', '))}</p>
+              <summary>Ver parámetros originales (extracción automática)</summary>
+              <p class="params-detail">${esc(s.parametros.join(', ')) || '—'}</p>
             </details>
           </div>
         </div>
 
         <!-- Row 7: Frecuencias + firma -->
         <div class="field-group">
-          ${field('frec_muestreo', 'Frecuencia de Muestreo', s.frec_muestreo, idx)}
+          ${selectField('frec_muestreo', 'Frecuencia de Muestreo', s.frec_muestreo, idx, FREQ_OPTIONS)}
         </div>
         <div class="field-group">
-          ${field('frec_reporte', 'Frecuencia de Reporte', s.frec_reporte, idx)}
+          ${selectField('frec_reporte', 'Frecuencia de Reporte', s.frec_reporte, idx, FREQ_OPTIONS)}
         </div>
         <div class="field-group">
           ${field('elaborado_por', 'Elaborado por', s.elaborado_por, idx)}
@@ -235,6 +257,101 @@
     `;
     container.appendChild(card);
   });
+
+  // ── Parámetros: etiquetas (chips) + agregar desde catálogo ─────────────────
+  function renderChips(idx) {
+    const box = document.getElementById('chips' + idx);
+    if (!box) return;
+    const params = samples[idx].parametros || [];
+    if (!params.length) {
+      box.innerHTML = '<span class="chips-empty">— sin parámetros —</span>';
+      return;
+    }
+    box.innerHTML = params.map((p, j) =>
+      `<span class="chip">${esc(p)}<button type="button" class="chip-x" title="Quitar" data-del="${idx}" data-j="${j}">✕</button></span>`
+    ).join('');
+  }
+
+  function addParamToSample(idx, val) {
+    val = (val || '').trim();
+    if (!val) return false;
+    samples[idx].parametros = samples[idx].parametros || [];
+    if (samples[idx].parametros.includes(val)) return false;
+    samples[idx].parametros.push(val);
+    renderChips(idx);
+    return true;
+  }
+
+  // Delegación de clics: quitar chip (✕) y agregar desde el desplegable
+  container.addEventListener('click', e => {
+    const x = e.target.closest('.chip-x');
+    if (x) {
+      const idx = +x.dataset.del, j = +x.dataset.j;
+      samples[idx].parametros.splice(j, 1);
+      renderChips(idx);
+      return;
+    }
+    const add = e.target.closest('.btn-chip-add');
+    if (add) {
+      const idx = +add.dataset.add;
+      const sel = document.getElementById('addSel' + idx);
+      addParamToSample(idx, sel.value);
+      sel.value = '';
+    }
+  });
+
+  samples.forEach((_, idx) => renderChips(idx));
+
+  // ── Barra "aplicar a todas" para las frecuencias ───────────────────────────
+  function freqOptionsHtml() {
+    return `<option value="">— Seleccionar —</option>` +
+      FREQ_OPTIONS.map(o => `<option value="${esc(o)}">${esc(o)}</option>`).join('');
+  }
+  if (samples.length > 1) {
+    const bulk = document.getElementById('bulkBar');
+    bulk.style.display = 'flex';
+    bulk.innerHTML = `
+      <span class="bulk-label">⚡ Aplicar a todas las fichas:</span>
+      <div class="bulk-field">
+        <label class="field-label">Frecuencia de Muestreo</label>
+        <select class="field-input" id="bulkFrecMuestreo">${freqOptionsHtml()}</select>
+      </div>
+      <div class="bulk-field">
+        <label class="field-label">Frecuencia de Reporte</label>
+        <select class="field-input" id="bulkFrecReporte">${freqOptionsHtml()}</select>
+      </div>
+      <button type="button" class="btn-bulk" id="applyAllBtn">Aplicar a todas</button>
+      <div class="bulk-field bulk-field-wide">
+        <label class="field-label">Agregar parámetro</label>
+        <select class="field-input" id="bulkAddParam">${catalogOptionsHtml()}</select>
+      </div>
+      <button type="button" class="btn-bulk" id="bulkAddBtn">Agregar a todas</button>
+    `;
+    document.getElementById('applyAllBtn').addEventListener('click', () => {
+      const m = document.getElementById('bulkFrecMuestreo').value;
+      const r = document.getElementById('bulkFrecReporte').value;
+      if (m) document.querySelectorAll('select[data-key="frec_muestreo"]').forEach(sel => { sel.value = m; });
+      if (r) document.querySelectorAll('select[data-key="frec_reporte"]').forEach(sel => { sel.value = r; });
+      const btn  = document.getElementById('applyAllBtn');
+      const orig = btn.textContent;
+      btn.textContent = (m || r) ? '✓ Aplicado a las ' + samples.length + ' fichas' : 'Elige una frecuencia';
+      btn.disabled = true;
+      setTimeout(() => { btn.textContent = orig; btn.disabled = false; }, 1400);
+    });
+    document.getElementById('bulkAddBtn').addEventListener('click', () => {
+      const val = document.getElementById('bulkAddParam').value;
+      const btn = document.getElementById('bulkAddBtn');
+      const orig = btn.textContent;
+      if (!val) {
+        btn.textContent = 'Elige un grupo';
+      } else {
+        samples.forEach((_, i) => addParamToSample(i, val));
+        btn.textContent = '✓ Agregado a las ' + samples.length + ' fichas';
+      }
+      btn.disabled = true;
+      setTimeout(() => { btn.textContent = orig; btn.disabled = false; }, 1400);
+    });
+  }
 
   // ── Photo upload ──────────────────────────────────────────────────────────
   let photoCounter = 0;
@@ -308,6 +425,21 @@
     `;
   }
 
+  function selectField(key, label, value, idx, options) {
+    const cur   = (value || '').trim();
+    const known = options.includes(cur);
+    let opts = `<option value=""${known ? '' : ' selected'}>— Seleccionar —</option>`;
+    opts += options.map(o =>
+      `<option value="${esc(o)}"${o === cur ? ' selected' : ''}>${esc(o)}</option>`
+    ).join('');
+    return `
+      <label class="field-label">${label}</label>
+      <select class="field-input" data-idx="${idx}" data-key="${key}">
+        ${opts}
+      </select>
+    `;
+  }
+
   function esc(s) {
     return String(s || '')
       .replace(/&/g, '&amp;')
@@ -320,16 +452,12 @@
   function collectSamples() {
     const out = JSON.parse(JSON.stringify(samples));
 
+    // Los parámetros viven en samples[idx].parametros (etiquetas) y ya están en
+    // la copia `out`; aquí solo se vuelcan los campos de texto/desplegables.
     document.querySelectorAll('[data-idx][data-key]').forEach(el => {
       const idx = parseInt(el.dataset.idx);
       const key = el.dataset.key;
-      const val = el.value.trim();
-
-      if (key === 'parametros_text') {
-        out[idx].parametros = val.split(',').map(p => p.trim()).filter(Boolean);
-      } else {
-        out[idx][key] = val;
-      }
+      out[idx][key] = el.value.trim();
     });
 
     // Inject shared header fields and photos into every sample
@@ -337,6 +465,8 @@
       s.cliente        = s.cliente        || data.cliente;
       s.direccion      = s.direccion      || data.direccion;
       s.lugar_muestreo = s.lugar_muestreo || data.lugar_muestreo;
+      s.frec_muestreo  = s.frec_muestreo  || '-';
+      s.frec_reporte   = s.frec_reporte   || '-';
       s.photos         = photoData[i] ? photoData[i].map(p => p.b64) : [];
     });
 

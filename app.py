@@ -4,14 +4,15 @@ import uuid
 import os
 
 from utils.extract import extract_cdc_data, _merge_duplicate_stations
+from utils.parametros import catalogo_grupos
 from utils.generate import generate_fichas_pdf
 
 app = Flask(__name__)
 app.secret_key = 'pacific-control-fichas-2026'
 
-BASE_DIR    = Path(__file__).parent
-UPLOAD_DIR  = Path("/tmp/uploads")
-OUTPUT_DIR  = Path("/tmp/output")
+BASE_DIR    = Path(__file__).resolve().parent
+UPLOAD_DIR  = BASE_DIR / 'uploads'
+OUTPUT_DIR  = BASE_DIR / 'output'
 TEMPLATE_PDF = BASE_DIR / 'Modelo ficha tecnica.pdf'
 
 UPLOAD_DIR.mkdir(exist_ok=True)
@@ -51,6 +52,7 @@ def process():
         except Exception:
             pass
 
+    data['catalogo'] = catalogo_grupos()
     return jsonify({'data': data})
 
 
