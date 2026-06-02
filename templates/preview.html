@@ -1,0 +1,388 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Revisar fichas – Pacific Control SAC</title>
+  <link rel="stylesheet" href="/static/styles.css">
+</head>
+<body>
+  <div class="app-shell">
+    <header class="topbar">
+      <div class="topbar-inner">
+        <div class="brand">
+          <span class="brand-title">Pacific Control SAC</span>
+          <span class="brand-sub">Generador de Fichas Técnicas</span>
+        </div>
+        <a href="/" class="btn-back">← Nueva carga</a>
+      </div>
+    </header>
+
+    <main class="main-content main-wide">
+      <div class="preview-header">
+        <div>
+          <h1 class="card-title" style="margin:0">Revisar y editar fichas</h1>
+          <p class="card-desc" style="margin:4px 0 0">
+            Verifica los datos extraídos. Puedes editar cualquier campo antes de generar el PDF.
+          </p>
+        </div>
+        <button class="btn-primary" id="generateBtn">
+          <span class="btn-text">⬇ Generar PDF</span>
+          <span class="btn-spinner" style="display:none">⏳ Generando…</span>
+        </button>
+      </div>
+
+      <div class="error-msg" id="errorMsg" style="display:none"></div>
+
+      <!-- Info summary row -->
+      <div class="info-bar" id="infoBar"></div>
+
+      <!-- Fichas table -->
+      <div id="fichasContainer"></div>
+    </main>
+  </div>
+
+  <script>
+  // ── Consolidation helpers ─────────────────────────────────────────────────
+  /**
+   * Normalise a string for duplicate-detection: remove everything that is not
+   * a letter or digit, then uppercase. This makes 'F1 - 39', 'F1-39', 'F139'
+   * all identical, regardless of PDF-extraction artefacts.
+   */
+  function normKey(s) {
+    return (s || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+  }
+
+  /**
+   * Merge samples that represent the same physical sampling point.
+   * Primary key: normKey(estacion) + '|' + normKey(cod_pto)
+   * Fallback key: normKey(estacion) + '|' + normKey(descripcion)
+   * Parameter lists are combined without repetition.
+   */
+  function consolidateSamples(list) {
+    const seen  = {};
+    const merged = [];
+
+    for (const s of list) {
+      const estN  = normKey(s.estacion   || '');
+      const codN  = normKey(s.cod_pto    || '');
+      const descN = normKey(s.descripcion|| '');
+      const key   = estN + '|' + (codN || descN);
+
+      if (key in seen) {
+        const ex = merged[seen[key]];
+        // Merge parameter arrays
+        let exP = Array.isArray(ex.parametros)
+          ? ex.parametros
+          : (ex.parametros || '').split(',').map(p => p.trim()).filter(Boolean);
+        const newP = Array.isArray(s.parametros)
+          ? s.parametros
+          : (s.parametros || '').split(',').map(p => p.trim()).filter(Boolean);
+        for (const p of newP) {
+          if (!exP.includes(p)) exP.push(p);
+        }
+        ex.parametros = exP;
+      } else {
+        seen[key] = merged.length;
+        const copy = Object.assign({}, s);
+        copy.parametros = Array.isArray(s.parametros)
+          ? [...s.parametros]
+          : (s.parametros || '').split(',').map(p => p.trim()).filter(Boolean);
+        merged.push(copy);
+      }
+    }
+    return merged;
+  }
+
+  // ── Load data ─────────────────────────────────────────────────────────────
+  const raw = sessionStorage.getItem('extractedData');
+  if (!raw) { window.location.href = '/'; }
+  const data = JSON.parse(raw);
+
+  // Consolidate right after loading – before anything is rendered
+  const originalCount = data.samples.length;
+  const samples = consolidateSamples(data.samples);
+  const mergedCount = originalCount - samples.length;
+
+  // Info bar
+  const mergedNote = mergedCount > 0
+    ? ` <span style="color:#2e7d32;font-weight:700">· ${mergedCount} punto(s) duplicado(s) fusionado(s)</span>`
+    : '';
+  document.getElementById('infoBar').innerHTML = `
+    <span><b>Cliente:</b> ${esc(data.cliente)}</span>
+    <span><b>Lugar de muestreo:</b> ${esc(data.lugar_muestreo)}</span>
+    <span><b>Fecha:</b> ${esc(data.fecha_muestreo)}</span>
+    <span><b>Fichas:</b> ${samples.length}</span>${mergedNote}
+  `;
+
+  // ── Build editable table ──────────────────────────────────────────────────
+  const container = document.getElementById('fichasContainer');
+
+  samples.forEach((s, idx) => {
+    const card = document.createElement('div');
+    card.className = 'ficha-card';
+    card.innerHTML = `
+      <div class="ficha-card-header">
+        <span class="ficha-num">Ficha ${idx + 1}</span>
+        <span class="ficha-code">${esc(s.estacion)} · ${esc(s.descripcion)}</span>
+        <span class="ficha-lab">${esc(s.cod_lab)}</span>
+      </div>
+      <div class="ficha-grid">
+
+        <!-- Row 1 -->
+        <div class="field-group span2">
+          ${field('cliente', 'Cliente', s.cliente, idx)}
+        </div>
+        <div class="field-group span2">
+          ${field('direccion', 'Dirección', s.direccion, idx)}
+        </div>
+        <div class="field-group span2">
+          ${field('lugar_muestreo', 'Lugar de Muestreo', s.lugar_muestreo, idx)}
+        </div>
+
+        <!-- Row 2 -->
+        <div class="field-group">
+          ${field('estacion', 'Estación de Muestreo', s.estacion, idx)}
+        </div>
+        <div class="field-group">
+          ${field('descripcion', 'Descripción', s.descripcion, idx)}
+        </div>
+        <div class="field-group narrow">
+          ${field('tipo_muestra', 'Tipo de Muestra', s.tipo_muestra, idx)}
+        </div>
+        <div class="field-group narrow">
+          ${field('clase', 'Clase', s.clase, idx)}
+        </div>
+
+        <!-- Row 3: UTM -->
+        <div class="field-group">
+          ${field('utm_norte', 'Norte (UTM)', s.utm_norte, idx)}
+        </div>
+        <div class="field-group">
+          ${field('utm_este', 'Este (UTM)', s.utm_este, idx)}
+        </div>
+        <div class="field-group narrow">
+          ${field('utm_zona', 'Zona', s.utm_zona, idx)}
+        </div>
+        <div class="field-group narrow">
+          ${field('utm_altitud', 'Altitud', s.utm_altitud, idx)}
+        </div>
+
+        <!-- Row 4: Fechas -->
+        <div class="field-group">
+          ${field('fecha_inicio', 'Fecha de Inicio', s.fecha_inicio, idx)}
+        </div>
+        <div class="field-group">
+          ${field('hora_inicio', 'Hora de Inicio', s.hora_inicio, idx)}
+        </div>
+        <div class="field-group">
+          ${field('fecha_fin', 'Fecha de Término', s.fecha_fin, idx)}
+        </div>
+        <div class="field-group">
+          ${field('hora_fin', 'Hora de Término', s.hora_fin, idx)}
+        </div>
+
+        <!-- Row 5: Ubicación -->
+        <div class="field-group">
+          ${field('distrito', 'Distrito', s.distrito, idx)}
+        </div>
+        <div class="field-group">
+          ${field('provincia', 'Provincia', s.provincia, idx)}
+        </div>
+        <div class="field-group">
+          ${field('departamento', 'Departamento', s.departamento, idx)}
+        </div>
+
+        <!-- Row 6: Parámetros (full width) -->
+        <div class="field-group span4">
+          <label class="field-label">Parámetros (agrupados)</label>
+          <textarea class="field-input field-textarea"
+            data-idx="${idx}" data-key="parametros_text"
+            rows="3">${esc(s.parametros.join(', '))}</textarea>
+          <div class="params-raw">
+            <details>
+              <summary>Ver parámetros originales de la CdC</summary>
+              <p class="params-detail">${esc(s.parametros.join(', '))}</p>
+            </details>
+          </div>
+        </div>
+
+        <!-- Row 7: Frecuencias + firma -->
+        <div class="field-group">
+          ${field('frec_muestreo', 'Frecuencia de Muestreo', s.frec_muestreo, idx)}
+        </div>
+        <div class="field-group">
+          ${field('frec_reporte', 'Frecuencia de Reporte', s.frec_reporte, idx)}
+        </div>
+        <div class="field-group">
+          ${field('elaborado_por', 'Elaborado por', s.elaborado_por, idx)}
+        </div>
+        <div class="field-group">
+          ${field('vb', 'Vº Bº', s.vb, idx)}
+        </div>
+
+        <!-- Row 8: Fotos -->
+        <div class="field-group span4">
+          <label class="field-label">Registro Fotográfico (opcional, máx. 4)</label>
+          <div class="photo-drop-area" id="photoDrop${idx}">
+            📷 Haz clic aquí o arrastra las fotos para agregar
+          </div>
+          <input type="file" id="photoInput${idx}" accept="image/*" multiple hidden>
+          <div class="photo-grid" id="photoGrid${idx}"></div>
+        </div>
+
+      </div>
+    `;
+    container.appendChild(card);
+  });
+
+  // ── Photo upload ──────────────────────────────────────────────────────────
+  let photoCounter = 0;
+  const photoData = samples.map(() => []);
+
+  function setupPhotoUpload(idx) {
+    const input   = document.getElementById(`photoInput${idx}`);
+    const dropArea = document.getElementById(`photoDrop${idx}`);
+
+    dropArea.addEventListener('click', () => input.click());
+    input.addEventListener('change', () => {
+      Array.from(input.files).forEach(f => addPhoto(idx, f));
+      input.value = '';
+    });
+    dropArea.addEventListener('dragover', e => { e.preventDefault(); dropArea.classList.add('drag-over'); });
+    dropArea.addEventListener('dragleave', () => dropArea.classList.remove('drag-over'));
+    dropArea.addEventListener('drop', e => {
+      e.preventDefault();
+      dropArea.classList.remove('drag-over');
+      Array.from(e.dataTransfer.files)
+        .filter(f => f.type.startsWith('image/'))
+        .forEach(f => addPhoto(idx, f));
+    });
+  }
+
+  function addPhoto(sampleIdx, file) {
+    if (photoData[sampleIdx].length >= 4) {
+      alert('Máximo 4 fotos por ficha.');
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = e => {
+      const id  = ++photoCounter;
+      const src = e.target.result;
+      const b64 = src.split(',')[1];
+      photoData[sampleIdx].push({ id, b64 });
+      renderPhotoGrid(sampleIdx);
+    };
+    reader.readAsDataURL(file);
+  }
+
+  function removePhoto(sampleIdx, id) {
+    photoData[sampleIdx] = photoData[sampleIdx].filter(p => p.id !== id);
+    renderPhotoGrid(sampleIdx);
+  }
+
+  function renderPhotoGrid(sampleIdx) {
+    const grid = document.getElementById(`photoGrid${sampleIdx}`);
+    grid.innerHTML = '';
+    photoData[sampleIdx].forEach(p => {
+      const thumb = document.createElement('div');
+      thumb.className = 'photo-thumb';
+      thumb.innerHTML = `
+        <img src="data:image/jpeg;base64,${esc(p.b64)}" alt="foto">
+        <button class="remove-photo" onclick="removePhoto(${sampleIdx},${p.id})">×</button>
+      `;
+      grid.appendChild(thumb);
+    });
+  }
+
+  // Init photo zones after cards are in the DOM
+  samples.forEach((_, idx) => setupPhotoUpload(idx));
+
+  // ── Helpers ───────────────────────────────────────────────────────────────
+  function field(key, label, value, idx) {
+    return `
+      <label class="field-label">${label}</label>
+      <input class="field-input" type="text"
+        data-idx="${idx}" data-key="${key}"
+        value="${esc(value || '')}">
+    `;
+  }
+
+  function esc(s) {
+    return String(s || '')
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
+  }
+
+  // ── Collect edited data ───────────────────────────────────────────────────
+  function collectSamples() {
+    const out = JSON.parse(JSON.stringify(samples));
+
+    document.querySelectorAll('[data-idx][data-key]').forEach(el => {
+      const idx = parseInt(el.dataset.idx);
+      const key = el.dataset.key;
+      const val = el.value.trim();
+
+      if (key === 'parametros_text') {
+        out[idx].parametros = val.split(',').map(p => p.trim()).filter(Boolean);
+      } else {
+        out[idx][key] = val;
+      }
+    });
+
+    // Inject shared header fields and photos into every sample
+    out.forEach((s, i) => {
+      s.cliente        = s.cliente        || data.cliente;
+      s.direccion      = s.direccion      || data.direccion;
+      s.lugar_muestreo = s.lugar_muestreo || data.lugar_muestreo;
+      s.photos         = photoData[i] ? photoData[i].map(p => p.b64) : [];
+    });
+
+    // Final consolidation pass before sending to server
+    return consolidateSamples(out);
+  }
+
+  // ── Generate ──────────────────────────────────────────────────────────────
+  document.getElementById('generateBtn').addEventListener('click', async () => {
+    setLoading(true);
+    hideError();
+
+    const finalSamples = collectSamples();
+
+    try {
+      const res = await fetch('/generate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ samples: finalSamples }),
+      });
+      const json = await res.json();
+      if (!res.ok || json.error) { showError(json.error || 'Error desconocido'); setLoading(false); return; }
+
+      // Trigger download
+      window.location.href = `/download/${json.download_id}`;
+      setLoading(false);
+    } catch (err) {
+      showError('Error de conexión: ' + err.message);
+      setLoading(false);
+    }
+  });
+
+  function setLoading(on) {
+    document.querySelector('#generateBtn .btn-text').style.display    = on ? 'none' : '';
+    document.querySelector('#generateBtn .btn-spinner').style.display = on ? '' : 'none';
+    document.getElementById('generateBtn').disabled = on;
+  }
+  function showError(msg) {
+    const el = document.getElementById('errorMsg');
+    el.textContent = msg;
+    el.style.display = 'block';
+    el.scrollIntoView({ behavior: 'smooth' });
+  }
+  function hideError() {
+    document.getElementById('errorMsg').style.display = 'none';
+  }
+  </script>
+</body>
+</html>

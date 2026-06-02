@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Fichas Técnicas – Pacific Control SAC</title>
+  <link rel="stylesheet" href="/static/styles.css">
+</head>
+<body>
+  <div class="app-shell">
+    <header class="topbar">
+      <div class="topbar-inner">
+        <div class="brand">
+          <span class="brand-title">Pacific Control SAC</span>
+          <span class="brand-sub">Generador de Fichas Técnicas</span>
+        </div>
+      </div>
+    </header>
+
+    <main class="main-content">
+      <div class="upload-card">
+        <h1 class="card-title">Cargar documentos</h1>
+        <p class="card-desc">
+          Sube la <strong>Cadena de Custodia</strong> y el sistema extraerá automáticamente
+          los datos para generar las fichas técnicas de muestreo.
+        </p>
+
+        <form id="uploadForm">
+          <!-- CDC -->
+          <div class="drop-zone" id="cdcDrop">
+            <div class="drop-icon">📄</div>
+            <p class="drop-label">Cadena de Custodia <span class="required">*</span></p>
+            <p class="drop-hint">Arrastra el PDF aquí o haz clic para seleccionar</p>
+            <input type="file" id="cdcFile" name="cdc_file" accept=".pdf" hidden>
+            <div class="file-name" id="cdcName"></div>
+          </div>
+
+          <!-- Error message -->
+          <div class="error-msg" id="errorMsg" style="display:none"></div>
+
+          <button type="submit" class="btn-primary" id="processBtn">
+            <span class="btn-text">Procesar documentos</span>
+            <span class="btn-spinner" style="display:none">⏳ Procesando…</span>
+          </button>
+        </form>
+      </div>
+    </main>
+  </div>
+
+  <script>
+    // Drop zone behaviour
+    function setupDrop(dropId, inputId, nameId) {
+      const drop = document.getElementById(dropId);
+      const input = document.getElementById(inputId);
+      const name  = document.getElementById(nameId);
+
+      drop.addEventListener('click', () => input.click());
+      input.addEventListener('change', () => {
+        if (input.files[0]) {
+          name.textContent = input.files[0].name;
+          drop.classList.add('has-file');
+        }
+      });
+      drop.addEventListener('dragover', e => { e.preventDefault(); drop.classList.add('drag-over'); });
+      drop.addEventListener('dragleave', ()  => drop.classList.remove('drag-over'));
+      drop.addEventListener('drop', e => {
+        e.preventDefault();
+        drop.classList.remove('drag-over');
+        const file = e.dataTransfer.files[0];
+        if (file && file.type === 'application/pdf') {
+          const dt = new DataTransfer();
+          dt.items.add(file);
+          input.files = dt.files;
+          name.textContent = file.name;
+          drop.classList.add('has-file');
+        }
+      });
+    }
+
+    setupDrop('cdcDrop', 'cdcFile', 'cdcName');
+
+    // Form submit
+    document.getElementById('uploadForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const cdc = document.getElementById('cdcFile').files[0];
+      if (!cdc) { showError('Selecciona la Cadena de Custodia'); return; }
+
+      setLoading(true);
+      hideError();
+
+      const fd = new FormData();
+      fd.append('cdc_file', cdc);
+
+      try {
+        const res = await fetch('/process', { method: 'POST', body: fd });
+        const json = await res.json();
+        if (!res.ok || json.error) { showError(json.error || 'Error desconocido'); setLoading(false); return; }
+
+        // Store data and redirect to preview
+        sessionStorage.setItem('extractedData', JSON.stringify(json.data));
+        window.location.href = '/preview';
+      } catch (err) {
+        showError('Error de conexión: ' + err.message);
+        setLoading(false);
+      }
+    });
+
+    function setLoading(on) {
+      document.querySelector('.btn-text').style.display   = on ? 'none' : '';
+      document.querySelector('.btn-spinner').style.display = on ? '' : 'none';
+      document.getElementById('processBtn').disabled = on;
+    }
+
+    function showError(msg) {
+      const el = document.getElementById('errorMsg');
+      el.textContent = msg;
+      el.style.display = 'block';
+    }
+
+    function hideError() {
+      document.getElementById('errorMsg').style.display = 'none';
+    }
+  </script>
+</body>
+</html>
