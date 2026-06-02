@@ -1,4 +1,5 @@
 flask
+pdfplumber
 fpdf2
 openpyxl
 pypdf2
