@@ -11,8 +11,8 @@ app = Flask(__name__)
 app.secret_key = 'pacific-control-fichas-2026'
 
 BASE_DIR    = Path(__file__).resolve().parent
-UPLOAD_DIR  = BASE_DIR / 'uploads'
-OUTPUT_DIR  = BASE_DIR / 'output'
+UPLOAD_DIR  = Path("/tmp/uploads")
+OUTPUT_DIR  = Path("/tmp/output")
 TEMPLATE_PDF = BASE_DIR / 'Modelo ficha tecnica.pdf'
 
 UPLOAD_DIR.mkdir(exist_ok=True)
