@@ -3,3 +3,4 @@ pdfplumber
 fpdf2
 openpyxl
 pypdf2
+PyMuPDF
