@@ -1,4 +1,5 @@
 import fitz
+from pathlib import Path
 import base64
 from typing import List, Dict
 
