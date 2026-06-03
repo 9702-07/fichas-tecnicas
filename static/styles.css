@@ -428,6 +428,61 @@ select.field-input {
   box-shadow: 0 1px 4px rgba(0,0,0,.3);
 }
 
+/* ── Modales (validación / vista previa) ──────────────────────────────────── */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 26, 48, .55);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  padding: 24px;
+}
+.modal {
+  background: #fff;
+  border-radius: 14px;
+  box-shadow: 0 12px 40px rgba(0,0,0,.3);
+  width: 100%;
+  max-width: 520px;
+  max-height: 90vh;
+  display: flex;
+  flex-direction: column;
+  padding: 22px 24px;
+}
+.modal-wide { max-width: 920px; }
+.modal-title { margin: 0; font-size: 18px; color: #1a3a6b; }
+.modal-sub { margin: 4px 0 0; font-size: 13px; color: #6b7a99; }
+.modal-head { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; margin-bottom: 12px; }
+.modal-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 18px; }
+.btn-secondary {
+  background: #eef2f9;
+  color: #1a3a6b;
+  border: 1px solid #d0d9ea;
+  border-radius: 8px;
+  padding: 9px 16px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background .15s;
+}
+.btn-secondary:hover { background: #e2e9f5; }
+.preview-frame {
+  width: 100%;
+  height: 70vh;
+  border: 1px solid #d0d9ea;
+  border-radius: 8px;
+  background: #f5f7fb;
+}
+.val-list { overflow-y: auto; margin-top: 12px; }
+.val-item { padding: 10px 0; border-top: 1px solid #eef2f9; }
+.val-item:first-child { border-top: none; }
+.val-ficha { font-weight: 700; font-size: 13.5px; color: #2b3a55; margin-bottom: 6px; }
+.val-tags { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 6px; }
+.val-tags li { font-size: 12px; font-weight: 600; padding: 3px 9px; border-radius: 12px; }
+.val-err  { background: #fdecea; color: #b3261e; border: 1px solid #f5c6c0; }
+.val-warn { background: #fff5e6; color: #9a6700; border: 1px solid #ffe0a6; }
+
 /* ── Responsive ───────────────────────────────────────────────────────────── */
 @media (max-width: 900px) {
   .ficha-grid { grid-template-columns: repeat(2, 1fr); }

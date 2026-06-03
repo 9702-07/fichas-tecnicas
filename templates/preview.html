@@ -42,6 +42,34 @@
 
       <!-- Fichas table -->
       <div id="fichasContainer"></div>
+
+      <!-- Modal: validación antes de generar -->
+      <div class="modal-overlay" id="validationModal" style="display:none">
+        <div class="modal">
+          <h2 class="modal-title">⚠️ Revisa antes de generar</h2>
+          <p class="modal-sub" id="validationSummary"></p>
+          <div class="val-list" id="validationList"></div>
+          <div class="modal-actions">
+            <button type="button" class="btn-secondary" id="valCancelBtn">← Corregir</button>
+            <button type="button" class="btn-primary" id="valProceedBtn">Generar de todas formas</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Modal: vista previa antes de descargar -->
+      <div class="modal-overlay" id="previewModal" style="display:none">
+        <div class="modal modal-wide">
+          <div class="modal-head">
+            <h2 class="modal-title">Vista previa</h2>
+            <span class="modal-sub" id="previewInfo"></span>
+          </div>
+          <iframe id="previewFrame" class="preview-frame" title="Vista previa del PDF"></iframe>
+          <div class="modal-actions">
+            <button type="button" class="btn-secondary" id="prevBackBtn">← Volver a editar</button>
+            <button type="button" class="btn-primary" id="prevDownloadBtn">⬇ Descargar PDF</button>
+          </div>
+        </div>
+      </div>
     </main>
   </div>
 
@@ -474,13 +502,76 @@
     return consolidateSamples(out);
   }
 
-  // ── Generate ──────────────────────────────────────────────────────────────
-  document.getElementById('generateBtn').addEventListener('click', async () => {
+  // ── Validación antes de generar ────────────────────────────────────────────
+  function validateSamples(list) {
+    const issues = [];
+    const blank = v => !v || !String(v).trim() || String(v).trim() === '-';
+    list.forEach((s, i) => {
+      const errors = [], warnings = [];
+      const params = Array.isArray(s.parametros) ? s.parametros : [];
+
+      if (!params.length)         errors.push('sin parámetros');
+      if (blank(s.estacion))      errors.push('sin estación');
+      if (blank(s.cliente))       errors.push('sin cliente');
+      if (blank(s.descripcion))   warnings.push('sin descripción');
+      if (blank(s.fecha_inicio))  warnings.push('sin fecha de inicio');
+      if (blank(s.frec_muestreo)) warnings.push('frecuencia de muestreo sin elegir');
+      if (blank(s.frec_reporte))  warnings.push('frecuencia de reporte sin elegir');
+      // Coordenadas UTM y fecha/hora de término pueden ir vacías: NO se validan.
+
+      if (errors.length || warnings.length) {
+        issues.push({
+          n: i + 1,
+          label: [s.estacion, s.descripcion].filter(Boolean).join(' · '),
+          errors, warnings,
+        });
+      }
+    });
+    return issues;
+  }
+
+  function showValidationModal(issues) {
+    const nErr  = issues.reduce((a, x) => a + x.errors.length, 0);
+    const nWarn = issues.reduce((a, x) => a + x.warnings.length, 0);
+    document.getElementById('validationSummary').textContent =
+      `${issues.length} ficha(s) con observaciones · ${nErr} error(es), ${nWarn} aviso(s).`;
+    document.getElementById('validationList').innerHTML = issues.map(x => `
+      <div class="val-item">
+        <div class="val-ficha">Ficha ${x.n}${x.label ? ' — ' + esc(x.label) : ''}</div>
+        <ul class="val-tags">
+          ${x.errors.map(e => `<li class="val-err">${esc(e)}</li>`).join('')}
+          ${x.warnings.map(w => `<li class="val-warn">${esc(w)}</li>`).join('')}
+        </ul>
+      </div>
+    `).join('');
+    document.getElementById('validationModal').style.display = 'flex';
+  }
+
+  // ── Generación + vista previa ──────────────────────────────────────────────
+  let pendingSamples = null;
+
+  document.getElementById('generateBtn').addEventListener('click', () => {
+    hideError();
+    pendingSamples = collectSamples();
+    const issues = validateSamples(pendingSamples);
+    if (issues.length) {
+      showValidationModal(issues);
+    } else {
+      doGenerate(pendingSamples);
+    }
+  });
+
+  document.getElementById('valCancelBtn').addEventListener('click', () => {
+    document.getElementById('validationModal').style.display = 'none';
+  });
+  document.getElementById('valProceedBtn').addEventListener('click', () => {
+    document.getElementById('validationModal').style.display = 'none';
+    if (pendingSamples) doGenerate(pendingSamples);
+  });
+
+  async function doGenerate(finalSamples) {
     setLoading(true);
     hideError();
-
-    const finalSamples = collectSamples();
-
     try {
       const res = await fetch('/generate', {
         method: 'POST',
@@ -489,14 +580,27 @@
       });
       const json = await res.json();
       if (!res.ok || json.error) { showError(json.error || 'Error desconocido'); setLoading(false); return; }
-
-      // Trigger download
-      window.location.href = `/download/${json.download_id}`;
+      showPreview(json.download_id, json.count);
       setLoading(false);
     } catch (err) {
       showError('Error de conexión: ' + err.message);
       setLoading(false);
     }
+  }
+
+  function showPreview(downloadId, count) {
+    document.getElementById('previewFrame').src = `/view/${downloadId}`;
+    document.getElementById('previewInfo').textContent =
+      `${count} ficha(s) · revisa el documento antes de descargar`;
+    document.getElementById('prevDownloadBtn').onclick = () => {
+      window.location.href = `/download/${downloadId}`;
+    };
+    document.getElementById('previewModal').style.display = 'flex';
+  }
+
+  document.getElementById('prevBackBtn').addEventListener('click', () => {
+    document.getElementById('previewModal').style.display = 'none';
+    document.getElementById('previewFrame').src = 'about:blank';
   });
 
   function setLoading(on) {

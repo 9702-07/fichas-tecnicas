@@ -114,6 +114,19 @@ def debug_extract():
         os.unlink(tmp.name)
 
 
+@app.route('/view/<download_id>')
+def view(download_id):
+    """Sirve el PDF embebido (inline) para la vista previa antes de descargar."""
+    if not download_id.isalnum():
+        return 'Not found', 404
+    path = OUTPUT_DIR / f'fichas_{download_id}.pdf'
+    if not path.exists():
+        return 'Not found', 404
+    return send_file(str(path), as_attachment=False,
+                     mimetype='application/pdf',
+                     download_name='Fichas_Tecnicas_Muestreo.pdf')
+
+
 @app.route('/download/<download_id>')
 def download(download_id):
     if not download_id.isalnum():
